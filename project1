@@ -1,0 +1,41 @@
+#Project 1: This project focuses on prediciting future prices of commodities contracts using an ARIMA model
+
+import pandas as pd
+from statsmodels.tsa.arima.model import ARIMA
+import numpy as np
+
+# Load the data
+nat_gas_data = pd.read_csv("Nat_Gas.csv")
+nat_gas_data['Dates'] = pd.to_datetime(nat_gas_data['Dates'], format='%m/%d/%y')
+nat_gas_data.set_index('Dates', inplace=True)
+
+# Function to estimate price for a given past date
+def estimate_price(date, data):
+    date = pd.to_datetime(date)
+    estimated_price = data.reindex(data.index.union([date])).interpolate(method='time').loc[date]
+    return estimated_price['Prices']
+
+# Fit an ARIMA model to the data
+model = ARIMA(nat_gas_data, order=(5, 1, 0))
+model_fit = model.fit()
+
+# Forecast the prices for one year into the future (12 months)
+forecast_steps = 12
+forecast = model_fit.forecast(steps=forecast_steps)
+
+# Create a date range for the forecasted values
+last_date = nat_gas_data.index[-1]
+forecast_dates = pd.date_range(last_date, periods=forecast_steps + 1, freq='M')[1:]
+
+# Combine the forecasted prices with the dates
+forecast_data = pd.DataFrame({'Prices': forecast}, index=forecast_dates)
+
+# Function to get estimated price or forecasted price
+def get_price(date, data, forecast_data):
+    date = pd.to_datetime(date)
+    if date in forecast_data.index:
+        return forecast_data.loc[date, 'Prices']
+    elif date in data.index:
+        return data.loc[date, 'Prices']
+    else:
+        return estimate_price(date, data)
