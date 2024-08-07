@@ -1,0 +1,41 @@
+#Project 4: This project utilizes dynammic programming to convert FICO scores into categorical data to predict defaults on loans
+
+import pandas as pd
+import numpy as np
+
+# Load the data
+loan_data = pd.read_csv("Customer_Loan_Data.csv")
+
+# Display the first few rows of the data
+print(loan_data.head())
+
+# Extract FICO scores (assuming the FICO score column is named 'FICO')
+fico_scores = loan_data['fico_score']
+
+# Number of buckets (ratings)
+num_buckets = 5
+
+# Quantization using equal-frequency binning
+# Create the bins using pandas.qcut
+bins = pd.qcut(fico_scores, num_buckets, labels=False)
+
+# Create a rating map DataFrame
+rating_map = pd.DataFrame({'fico_score': fico_scores, 'Rating': bins})
+
+# Assign ratings such that lower ratings signify better credit scores
+rating_map['Rating'] = num_buckets - rating_map['Rating']
+
+# Display the rating map
+print(rating_map.head())
+
+# Function to map FICO score to rating
+def map_fico_to_rating(fico_score, rating_map):
+    bin_edges = pd.qcut(fico_scores, num_buckets, retbins=True)[1]
+    rating = np.digitize(fico_score, bin_edges) - 1
+    rating = num_buckets - rating
+    return rating
+
+# Example usage
+fico_score_example = 720
+rating = map_fico_to_rating(fico_score_example, rating_map)
+print(f"Rating for FICO score {fico_score_example}: {rating}")
