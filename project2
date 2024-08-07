@@ -1,0 +1,89 @@
+#Project 2: This project expands on project 1 to predict future values of commodity storage contracts
+
+import pandas as pd
+from statsmodels.tsa.arima.model import ARIMA
+
+# Load the data
+nat_gas_data = pd.read_csv("Nat_Gas.csv")
+nat_gas_data['Dates'] = pd.to_datetime(nat_gas_data['Dates'], format='%m/%d/%y')
+nat_gas_data.set_index('Dates', inplace=True)
+
+# Function to estimate price for a given past date
+def estimate_price(date, data):
+    date = pd.to_datetime(date)
+    if date < data.index.min() or date > data.index.max():
+        raise ValueError("The date is out of the range of the data.")
+    estimated_price = data.reindex(data.index.union([date])).interpolate(method='time').loc[date]
+    return estimated_price['Prices']
+
+# Fit an ARIMA model to the data
+model = ARIMA(nat_gas_data, order=(5, 1, 0))
+model_fit = model.fit()
+
+# Forecast the prices for one year into the future (12 months)
+forecast_steps = 12
+forecast = model_fit.forecast(steps=forecast_steps)
+
+# Create a date range for the forecasted values
+last_date = nat_gas_data.index[-1]
+forecast_dates = pd.date_range(last_date, periods=forecast_steps + 1, freq='M')[1:]
+
+# Combine the forecasted prices with the dates
+forecast_data = pd.DataFrame({'Prices': forecast}, index=forecast_dates)
+
+# Function to get estimated price or forecasted price
+def get_price(date, data, forecast_data):
+    date = pd.to_datetime(date)
+    if date in forecast_data.index:
+        return forecast_data.loc[date, 'Prices']
+    elif date in data.index:
+        return data.loc[date, 'Prices']
+    else:
+        return estimate_price(date, data)
+
+# Function to calculate the value of the gas storage contract
+def calculate_contract_value(injection_dates, withdrawal_dates, injection_rates, withdrawal_rates, max_storage, storage_cost, data, forecast_data):
+    # Initialize variables
+    total_injected = 0
+    total_withdrawn = 0
+    net_value = 0
+    storage_volume = 0
+
+    # Calculate the cash flows for each injection date
+    for date, rate in zip(injection_dates, injection_rates):
+        price = get_price(date, data, forecast_data)
+        injected_amount = rate
+        if storage_volume + injected_amount > max_storage:
+            injected_amount = max_storage - storage_volume
+        storage_volume += injected_amount
+        total_injected += injected_amount * price
+        net_value -= injected_amount * price
+
+    # Calculate the cash flows for each withdrawal date
+    for date, rate in zip(withdrawal_dates, withdrawal_rates):
+        price = get_price(date, data, forecast_data)
+        withdrawn_amount = rate
+        if storage_volume - withdrawn_amount < 0:
+            withdrawn_amount = storage_volume
+        storage_volume -= withdrawn_amount
+        total_withdrawn += withdrawn_amount * price
+        net_value += withdrawn_amount * price
+
+    # Calculate the total storage costs
+    storage_cost_total = storage_cost * storage_volume
+
+    # Calculate the net value of the contract
+    net_value -= storage_cost_total
+
+    return net_value
+
+# Test the function with sample inputs
+injection_dates = ['2021-03-15', '2021-06-15']
+withdrawal_dates = ['2021-12-15', '2022-03-15']
+injection_rates = [100, 150]  # Units of gas injected per date
+withdrawal_rates = [80, 120]  # Units of gas withdrawn per date
+max_storage = 300  # Maximum storage capacity
+storage_cost = 1  # Cost per unit of stored gas
+
+contract_value = calculate_contract_value(injection_dates, withdrawal_dates, injection_rates, withdrawal_rates, max_storage, storage_cost, nat_gas_data, forecast_data)
+print(f"Contract Value: {contract_value}")
