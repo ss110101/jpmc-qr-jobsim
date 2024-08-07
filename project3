@@ -1,0 +1,57 @@
+#Project 3: This project focuses on creating a model to analyze a book of loans to estimate a customer's probability of defualting
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, accuracy_score
+
+# Load the data
+loan_data = pd.read_csv("Customer_Loan_Data.csv")
+
+# Display the first few rows of the data
+print(loan_data.head())
+
+# Data preprocessing (assuming the target column is 'default')
+# Fill missing values (if any)
+loan_data.fillna(loan_data.mean(), inplace=True)
+
+# Convert categorical variables to numeric (if needed)
+# Example: loan_data = pd.get_dummies(loan_data, drop_first=True)
+
+# Split the data into features (X) and target (y)
+X = loan_data.drop(columns=['default'])
+y = loan_data['default']
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Standardize the features
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Train a Logistic Regression model
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Evaluate the model
+y_pred_proba = model.predict_proba(X_test)[:, 1]
+roc_auc = roc_auc_score(y_test, y_pred_proba)
+accuracy = accuracy_score(y_test, model.predict(X_test))
+
+print(f"ROC AUC Score: {roc_auc}")
+print(f"Accuracy: {accuracy}")
+
+# Function to predict the probability of default and expected loss
+def predict_default_and_loss(loan_details, model, scaler, recovery_rate=0.1):
+    loan_details_scaled = scaler.transform([loan_details])
+    prob_default = model.predict_proba(loan_details_scaled)[:, 1][0]
+    expected_loss = prob_default * (1 - recovery_rate)
+    return prob_default, expected_loss
+
+# Example usage
+loan_details = [50000, 20000, 0.35, 10, 5, 100000, 650]  # Replace with actual loan details
+prob_default, expected_loss = predict_default_and_loss(loan_details, model, scaler)
+print(f"Probability of Default: {prob_default}")
+print(f"Expected Loss: {expected_loss}")
